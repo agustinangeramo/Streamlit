@@ -6,6 +6,7 @@ import warnings
 warnings.filterwarnings('ignore')
 import base64
 import streamlit.components.v1 as components
+os.system('pip install statsmodels')
 
 
 # Configuración de página
@@ -141,6 +142,27 @@ procedure_df["%"] = (procedure_df["n"] / total_procedures) * 100
 # Mostrar tabla de procedimientos
 st.markdown("### Procedimientos y sus frecuencias")
 st.dataframe(procedure_df.set_index("Numero"))
+
+# Crear una nueva columna 'año' en el DataFrame
+filtered_df['año'] = filtered_df['fecha'].dt.year
+
+# Agrupar por año y contar el número de procedimientos
+procedures_per_year = filtered_df.groupby('año').size().reset_index(name='total_procedimientos')
+
+# Crear el gráfico de barras con línea de tendencia
+fig_procedures_per_year = px.bar(procedures_per_year, x='año', y='total_procedimientos', title='Total de procedimientos por año')
+
+# Añadir la línea de tendencia
+trendline = px.scatter(procedures_per_year, x='año', y='total_procedimientos', trendline='ols').data
+for trace in trendline:
+    if trace.mode == 'lines':
+        trace.line.color = 'red'
+
+fig_procedures_per_year.add_traces(trendline)
+
+# Mostrar el gráfico en Streamlit
+st.plotly_chart(fig_procedures_per_year)
+
 
 # Gráfico de barras horizontales del número y porcentaje de procedimientos por operador
 operator_procedure_counts = filtered_df.groupby(["operador", "procedimiento"]).size().reset_index(name="counts")
