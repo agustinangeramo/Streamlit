@@ -35,12 +35,19 @@ endDate = df["fecha"].max()
 
 # Filtrar por fechas
 with col1:
-    date1 = pd.to_datetime(st.date_input("Start Date", startDate))
+    date1 = st.date_input("Start Date", startDate.date(), min_value=startDate.date(), max_value=endDate.date())
 with col2:
-    date2 = pd.to_datetime(st.date_input("End Date", endDate))
+    date2 = st.date_input("End Date", endDate.date(), min_value=startDate.date(), max_value=endDate.date())
 
-df = df[(df["fecha"] >= date1) & (df["fecha"] <= date2)].copy()
+# Convertir los valores de date a datetime
+date1 = pd.to_datetime(date1)
+date2 = pd.to_datetime(date2)
 
+# Asegurarse de que las fechas estén en el orden correcto
+if date1 > date2:
+    st.error("La fecha de inicio no puede ser mayor que la fecha de finalización.")
+else:
+    df = df[(df["fecha"] >= date1) & (df["fecha"] <= date2)].copy()
 # Barra de filtros lateral
 st.sidebar.header("Filtros: ")
 
@@ -92,20 +99,26 @@ st.markdown(download_csv(filtered_df), unsafe_allow_html=True)
 total_records = filtered_df.shape[0]
 st.markdown(f"<p style='font-size:24px; font-weight:bold;'>Total de registros: {total_records}</p>", unsafe_allow_html=True)
 
+# Crear una nueva columna 'año' en el DataFrame
+filtered_df['año'] = filtered_df['fecha'].dt.year
 
-# Calcular edad promedio
-average_age = filtered_df["edad"].mean()
-min_age = filtered_df["edad"].min()
-max_age = filtered_df["edad"].max()
-st.markdown(f"<p style='font-size:24px; font-weight:bold;'>Edad promedio: {average_age:.2f} años ({min_age} - {max_age})</p>", unsafe_allow_html=True)
+# Agrupar por año y contar el número de procedimientos
+procedures_per_year = filtered_df.groupby('año').size().reset_index(name='total_procedimientos')
 
-# Calcular distribución de sexo
-total_males = filtered_df[filtered_df["sexo"] == "M"].shape[0]
-total_females = filtered_df[filtered_df["sexo"] == "F"].shape[0]
-percentage_males = (total_males / total_records) * 100
-percentage_females = (total_females / total_records) * 100
+# Crear el gráfico de barras con línea de tendencia
+fig_procedures_per_year = px.bar(procedures_per_year, x='año', y='total_procedimientos', title='Total de procedimientos por año')
 
-st.markdown(f"<p style='font-size:24px; font-weight:bold;'>Sexo: Hombres {total_males} ({percentage_males:.2f}%) y Mujeres {total_females} ({percentage_females:.2f}%)</p>", unsafe_allow_html=True)
+# Añadir la línea de tendencia
+trendline = px.scatter(procedures_per_year, x='año', y='total_procedimientos', trendline='ols').data
+for trace in trendline:
+    if trace.mode == 'lines':
+        trace.line.color = 'red'
+
+fig_procedures_per_year.add_traces(trendline)
+
+# Mostrar el gráfico en Streamlit
+st.plotly_chart(fig_procedures_per_year)
+
 
 # Gráfico de barras ordenado por fecha
 fig = px.bar(filtered_df, x="fecha", title="Procedimientos realizados por fecha")
@@ -143,26 +156,31 @@ procedure_df["%"] = (procedure_df["n"] / total_procedures) * 100
 st.markdown("### Procedimientos y sus frecuencias")
 st.dataframe(procedure_df.set_index("Numero"))
 
-# Crear una nueva columna 'año' en el DataFrame
-filtered_df['año'] = filtered_df['fecha'].dt.year
+# Calcular el número y porcentaje de pacientes pediátricos y adultos
+pediatric_count = filtered_df[filtered_df["edad"] <= 15].shape[0]
+adult_count = filtered_df[filtered_df["edad"] > 15].shape[0]
+total_patients = pediatric_count + adult_count
 
-# Agrupar por año y contar el número de procedimientos
-procedures_per_year = filtered_df.groupby('año').size().reset_index(name='total_procedimientos')
+percentage_pediatric = (pediatric_count / total_patients) * 100
+percentage_adult = (adult_count / total_patients) * 100
 
-# Crear el gráfico de barras con línea de tendencia
-fig_procedures_per_year = px.bar(procedures_per_year, x='año', y='total_procedimientos', title='Total de procedimientos por año')
+# Crear un DataFrame para el gráfico
+patients_df = pd.DataFrame({
+    "Grupo Etario": ["Pediátricos (<=15 años)", "Adultos (>15 años)"],
+    "Número de Pacientes": [pediatric_count, adult_count],
+    "Porcentaje": [percentage_pediatric, percentage_adult]
+})
 
-# Añadir la línea de tendencia
-trendline = px.scatter(procedures_per_year, x='año', y='total_procedimientos', trendline='ols').data
-for trace in trendline:
-    if trace.mode == 'lines':
-        trace.line.color = 'red'
+# Gráfico de barras verticales
+fig_patients = px.bar(patients_df, x="Grupo Etario", y="Número de Pacientes", text="Porcentaje",
+                      title="Número y Porcentaje de Pacientes por Grupo Etario",
+                      labels={"Grupo Etario": "Grupo Etario", "Número de Pacientes": "Número de Pacientes", "Porcentaje": "Porcentaje (%)"})
+fig_patients.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+st.plotly_chart(fig_patients)
 
-fig_procedures_per_year.add_traces(trendline)
-
-# Mostrar el gráfico en Streamlit
-st.plotly_chart(fig_procedures_per_year)
-
+# Mostrar tabla con el número de pacientes y porcentaje
+st.markdown("### Número y Porcentaje de Pacientes por Grupo Etario")
+st.dataframe(patients_df.set_index("Grupo Etario"))
 
 # Gráfico de barras horizontales del número y porcentaje de procedimientos por operador
 operator_procedure_counts = filtered_df.groupby(["operador", "procedimiento"]).size().reset_index(name="counts")
