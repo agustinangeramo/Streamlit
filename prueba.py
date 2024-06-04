@@ -156,11 +156,7 @@ procedure_df["%"] = (procedure_df["n"] / total_procedures) * 100
 st.markdown("### Procedimientos y sus frecuencias")
 st.dataframe(procedure_df.set_index("Numero"))
 
-# Calcular edad promedio
-average_age = filtered_df["edad"].mean()
-min_age = filtered_df["edad"].min()
-max_age = filtered_df["edad"].max()
-st.markdown(f"<p style='font-size:24px; font-weight:bold;'>Edad promedio: {average_age:.2f} años ({min_age} - {max_age})</p>", unsafe_allow_html=True)
+
 
 # Calcular distribución de sexo
 total_males = filtered_df[filtered_df["sexo"] == "M"].shape[0]
@@ -169,6 +165,12 @@ percentage_males = (total_males / total_records) * 100
 percentage_females = (total_females / total_records) * 100
 
 st.markdown(f"<p style='font-size:24px; font-weight:bold;'>Sexo: Hombres {total_males} ({percentage_males:.2f}%) y Mujeres {total_females} ({percentage_females:.2f}%)</p>", unsafe_allow_html=True)
+
+# Calcular edad promedio
+average_age = filtered_df["edad"].mean()
+min_age = filtered_df["edad"].min()
+max_age = filtered_df["edad"].max()
+st.markdown(f"<p style='font-size:24px; font-weight:bold;'>Edad promedio: {average_age:.2f} años ({min_age} - {max_age})</p>", unsafe_allow_html=True)
 
 # Calcular el número y porcentaje de pacientes pediátricos y adultos
 pediatric_count = filtered_df[filtered_df["edad"] <= 15].shape[0]
