@@ -283,53 +283,108 @@ fig_os.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
 st.plotly_chart(fig_os)
 
 # Calcular el porcentaje de complicaciones totales
+total_records = filtered_df.shape[0]
 total_complications = filtered_df[filtered_df["complicaciones"] != "No"].shape[0]
 percentage_complications = (total_complications / total_records) * 100
+
+# Mostrar porcentaje de complicaciones totales
 st.markdown(f"<p style='font-size:24px; font-weight:bold;'>Porcentaje de complicaciones: {percentage_complications:.2f}%</p>", unsafe_allow_html=True)
+
+# Crear un gráfico de torta que muestre complicaciones vs no complicaciones
+no_complications = total_records - total_complications  # Calcular los casos sin complicaciones
+
+# Crear un DataFrame para el gráfico de torta
+complications_pie_data = pd.DataFrame({
+    'Estado': ['Complicado', 'No complicado'],
+    'Cantidad': [total_complications, no_complications]
+})
+
+# Crear el gráfico de torta usando plotly express
+fig_pie = px.pie(complications_pie_data, values='Cantidad', names='Estado', 
+                 title='Complicaciones vs No complicaciones', 
+                 color_discrete_sequence=px.colors.qualitative.Pastel)
+
+# Mostrar el gráfico de torta
+st.plotly_chart(fig_pie)
 
 # Filtrar complicaciones y mostrar detalle en tabla
 complications_table = filtered_df[filtered_df["complicaciones"] != "No"][["nombre", "procedimiento", "complicaciones", "resolucion"]]
 st.markdown("### Detalle de Complicaciones:")
 st.dataframe(complications_table)
 
-def plot_complications(df, procedure_id, procedure_name):
-    df_procedure = df[df["procedimiento"] == procedure_id][["procedimiento", "complicaciones", "nombre", "resolucion", "patologia"]].copy()
+# Función para graficar complicaciones y diagnósticos
+def plot_complications(df_procedure, procedure_id, procedure_name):
+    # Filtrar los datos por procedimiento
+    df_procedure = df_procedure[df_procedure["procedimiento"] == procedure_id][["procedimiento", "complicaciones", "nombre", "resolucion", "patologia"]].copy()
     df_procedure["procedimiento"] = procedure_name
     df_procedure["complicaciones"] = df_procedure["complicaciones"].replace("No", "No Complicaciones")
+    
+    total_procedures = len(df_procedure)  # Número total de procedimientos para este procedimiento
+    
+    # Título principal
+    st.markdown(f"### {procedure_name}          \nN total: {total_procedures}")
+    
+    # Clasificación de diagnóstico: "Incaracterístico" como "No diagnóstico", el resto como "Diagnóstico"
+    df_procedure['diagnostico'] = df_procedure['patologia'].apply(lambda x: 'No diagnóstico' if x == 'Incaracteristico' else 'Diagnóstico')
+
+    # Contar ocurrencias de cada categoría de diagnóstico
+    diagnostico_counts = df_procedure['diagnostico'].value_counts()
+    diagnostico_percentages = diagnostico_counts / diagnostico_counts.sum() * 100
+
+    # Crear el DataFrame para el gráfico de diagnóstico
+    diagnostico_summary = pd.DataFrame({
+        'Diagnóstico': diagnostico_counts.index,
+        'Total Diagnóstico': diagnostico_counts.values,
+        'Porcentaje Diagnóstico (%)': diagnostico_percentages.values
+    })
+
+    # Gráfico de barras horizontal para el diagnóstico
+    fig_diagnostico = px.bar(diagnostico_summary, x='Total Diagnóstico', y='Diagnóstico', orientation='h', text='Porcentaje Diagnóstico (%)',
+                             title=f'{procedure_name}: Diagnóstico vs No diagnóstico',
+                             labels={"Total Diagnóstico": "Total Diagnóstico", "Diagnóstico": "Diagnóstico", "Porcentaje Diagnóstico (%)": "Porcentaje Diagnóstico (%)"})
+    fig_diagnostico.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+
+    # Mostrar el gráfico de diagnóstico
+    st.plotly_chart(fig_diagnostico)
+
+    # Mostrar la tabla resumen de diagnóstico
+    st.markdown(f"### Resumen de Diagnóstico - {procedure_name}")
+    st.dataframe(diagnostico_summary[['Diagnóstico', 'Total Diagnóstico', 'Porcentaje Diagnóstico (%)']])
+
+    # Tabla de patología
+    pathology_table = df_procedure[["nombre", "patologia"]]
+    pathology_table = pathology_table.drop_duplicates()  # Eliminar duplicados por si hay varios procedimientos para el mismo paciente
+    st.markdown(f"### Detalle de Patología - {procedure_name}")
+    st.dataframe(pathology_table)
+
+    # Contar complicaciones
     complication_counts = df_procedure["complicaciones"].value_counts()
     complication_percentages = complication_counts / complication_counts.sum() * 100
-    total_procedures = len(df_procedure)  # Número total de procedimientos para este procedimiento
 
+    # Crear el DataFrame para el gráfico de complicaciones
     complications = pd.DataFrame({
         "Complicaciones": complication_counts.index,
         "Total Complicaciones": complication_counts.values,
         "Porcentaje Complicaciones (%)": complication_percentages.values
     })
 
-    title_text = f"{procedure_name}:          \nN total: {total_procedures}"
-
+    # Gráfico de complicaciones
     fig_complications = px.bar(complications, x="Total Complicaciones", y="Complicaciones", orientation="h", text="Porcentaje Complicaciones (%)",
-                               title=title_text,
+                               title=f"{procedure_name}: Complicaciones",
                                labels={"Total Complicaciones": "Total Complicaciones", "Complicaciones": "Complicaciones", "Porcentaje Complicaciones (%)": "Porcentaje Complicaciones (%)"})
     fig_complications.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-    st.markdown(f"### {procedure_name}")
+
+    # Mostrar el gráfico de complicaciones
     st.plotly_chart(fig_complications)
 
+    # Mostrar la tabla de complicaciones
     complications_table = df_procedure[df_procedure["complicaciones"] != "No Complicaciones"][["nombre", "complicaciones", "resolucion"]]
     st.markdown(f"### Detalle de Complicaciones - {procedure_name}")
     st.dataframe(complications_table)
 
-    # Nueva tabla para mostrar el nombre del paciente y la patología
-    pathology_table = df_procedure[["nombre", "patologia"]]
-    pathology_table = pathology_table.drop_duplicates()  # Eliminar duplicados por si hay varios procedimientos para el mismo paciente
-    st.markdown(f"### Detalle de Patología - {procedure_name}")
-    st.dataframe(pathology_table)
-
 # Títulos antes de cada sección
 plot_complications(df, 7, "Biopsia Hepática")
-
 plot_complications(df, 8, "Biopsia Renal")
-
 plot_complications(df, 9, "Biopsia Pulmonar")
 
 # Título y gráfico de barras verticales para el procedimiento "PAAF Tiroidea"
